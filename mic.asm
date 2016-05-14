@@ -1,46 +1,92 @@
-; multi-segment executable file template.
-
+#start=DAS5332_Temp.exe#      
+      
 data segment
     iniciou DB 0
-    standby DB 0 
-    NIVELMAX DB 50d
+    
+    NIVELMAX EQU 50d
     nivel DB 1
-    ;adiciona uma lista de tamanho X, com tudo 0
+    
+    sequencia DB NIVELMAX DUP(0)
+    fim_sequenecia DB ?
 ends
 
 stack segment
     dw   16  dup(0)
 ends       
 
-interrupt segment
-    ;90h comeca -> seta iniciou=1; verificar se esta em standby
-    ;91h reinicia
+interrupt segment   
+    trata90h:
+        MOV iniciou, 1
+        IRET
+        
+    trata91h:
+        ;reinicia
+        IRET
+        
     
 interrupt ends
 
 code segment
-start:
-    mov ax, data
-    mov ds, ax
-    mov es, ax
+    ;---------------CONFIGURACAO---------------;
+    config_interrupt PROC
+        MOV AX, interrupt
+        MOV DS, AX
+        
+        MOV DX, offset trata90h
+        MOV AL, 90h
+        MOV AH, 25h  ;;21/25 usa DS:DX
+        INT 21h
+        
+        MOV DX, offset trata91h
+        MOV AL, 91h
+        MOV AH, 25h
+        INT 21h
+        
+        RET
+    config_interrupt ENDP
     
-    ;Adicionar config das interrupcoes
+    generate_random PROC
+        MOV AH, 00  ;Interrupcao 1A/00
+        INT 1AH     ;CX:DX recebe o numero de ticks do clock desde a meia noite   
+        
+        MOV AX, DX
+        XOR DX, DX ;DX = 0
+        MOV CX, 8  ;CX = 10
+        DIV CX     ;AX = AX/CX -> resto vai para DX->numero entre 0 e 7
+        INC DX     ;Agora DX esta entre 1 e 8
+        
+        RET
+    generate_random ENDP
     
-standby:
-    MOV standby, 1
+    
+    ;---------------Programa Principal---------------;
+START:
+    CALL config_interrupt
+    MOV AX, data
+    MOV DS, AX
+    MOV ES, AX
+    MOV SI, 00
+    
+    
+STANDBY:
     CMP iniciou, 1
-    JNE standby
+    JNE STANDBY
     
-pisca:
-    ;gerar numero aleatorio, adicionar a lista
-    ;pega NIVEL elementos da lista e joga no led, sequencialmente
+PISCA:
+    CALL generate_random
+    MOV sequencia[SI], DL
+    INC SI
+    
+    ;Jogar esses numeros no led sequencialmente
+    
+    JMP STANDBY
 
-input:
+INPUT:
     ;Ve o que o jogador botou, compara com a lista
     ;Se acertou, continua verificando, ate chegar em NIVEL vezes, quando da delay e pula pra pisca
     ;Se errou, pisca e reinicia
      
-delay:
+DELAY:
     ;CALL atraso
     ;nivel +1
     ;atualizar LED Display
@@ -49,7 +95,7 @@ delay:
     ;else parabens e reinciia
     
 
-reinicia:
+REINICIA:
     ;Nivel = 1
     ;Atualiza nivel display
     ;Zera lista (ou nao) -> tem que ver como lidar com a lista
@@ -59,6 +105,6 @@ reinicia:
     
 ends
 
-end start ; set entry point and stop the assembler.
+end START ; set entry point and stop the assembler.
 
 
