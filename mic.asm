@@ -10,9 +10,11 @@ data segment
     fim_sequenecia DB ?
 ends
 
+
 stack segment
     dw   16  dup(0)
 ends       
+
 
 interrupt segment   
     trata90h:
@@ -23,12 +25,11 @@ interrupt segment
         ;reinicia
         IRET
         
-    
 interrupt ends
 
 code segment
-    ;---------------CONFIGURACAO---------------;
-    config_interrupt PROC
+    ;---------------PROCEDIMENTOS---------------;
+    config_interrupt PROC  ;Configura as interrupcoes
         MOV AX, interrupt
         MOV DS, AX
         
@@ -45,43 +46,114 @@ code segment
         RET
     config_interrupt ENDP
     
-    generate_random PROC
-        MOV AH, 00  ;Interrupcao 1A/00
+    
+    generate_random PROC ;Gera numero aleatorio entre 1 e 8
+        MOV AH, 00  ;INT 1A-00
         INT 1AH     ;CX:DX recebe o numero de ticks do clock desde a meia noite   
         
         MOV AX, DX
         XOR DX, DX ;DX = 0
-        MOV CX, 8  ;CX = 10
+        MOV CX, 8  ;CX = 8
         DIV CX     ;AX = AX/CX -> resto vai para DX->numero entre 0 e 7
         INC DX     ;Agora DX esta entre 1 e 8
         
         RET
     generate_random ENDP
     
+    atraso PROC ;Gera atraso
+        PUSH CX
+        MOV CX, 20h
+        CALL atraso2
+        POP CX
+        ret
+    atraso ENDP
     
+    atraso2 PROC ;Funcao auxiliar do atraso
+        loop atraso2
+        ret
+    atraso2 ENDP
+    
+    
+    transforma PROC  ;Precisa transforma o numero inteiro 1~8
+        CMP AL, 0011b ;em uma saida de LED
+        JE arruma3    ;Esse jeito ta bem chato, tentem ver se 
+                      ;existe uma forma melhor, sem ter que tratar
+        CMP AL, 0100b ;caso a caso.
+        JE arruma4
+        
+        CMP AL, 0101b    ;Note que no caso 1 e 2 nao mexi pq nao precisa.
+        JE arruma5
+        
+        CMP AL, 0110b
+        JE arruma6
+        
+        CMP AL, 0111b
+        JE arruma7
+        
+        CMP AL, 1000b
+        JE arruma8
+        
+        RET
+    
+    arruma3:
+        MOV AL, 100b
+        RET
+    
+    arruma4:
+        MOV AL, 1000b
+        RET
+    
+    arruma5:
+        MOV AL, 10000b
+        RET
+        
+    arruma6:
+        MOV AL, 100000b
+        RET
+        
+    arruma7:
+        MOV AL, 1000000b
+        RET
+        
+    arruma8:
+        MOV AL, 10000000b
+        RET   
     ;---------------Programa Principal---------------;
 START:
-    CALL config_interrupt
-    MOV AX, data
+    CALL config_interrupt ;configura interrupcoes
+    
+    MOV AX, data ;aponta DS e ES para o data segment
     MOV DS, AX
     MOV ES, AX
-    MOV SI, 00
     
+    MOV SI, 00 ;inicia SI em 0. *ponteiro de lista*
     
 STANDBY:
-    CMP iniciou, 1
+    CMP iniciou, 1 ;espera iniciar
     JNE STANDBY
     
-PISCA:
-    CALL generate_random
-    MOV sequencia[SI], DL
+ADD_SEQ:
+    CALL generate_random  ;gera random
+    MOV sequencia[SI], DL ;poe na sequencia
     INC SI
     
-    ;Jogar esses numeros no led sequencialmente
+PISCA_LED:
+    PUSH SI        ;salva SI
+    MOV SI, 00h         
+    MOV CL, nivel ;vai piscar nivel leds
     
-    JMP STANDBY
+pisca1:
+    MOV AL, sequencia[SI]
+    CALL transforma    ;transforma o numero inteiro em uma saida pros leds       
+    OUT 21h, AL
+    INC SI
+    CALL atraso
+    loop pisca1   ;pisca nivel vezes.
+    
 
 INPUT:
+    POP SI  ;recupera SI 
+    
     ;Ve o que o jogador botou, compara com a lista
     ;Se acertou, continua verificando, ate chegar em NIVEL vezes, quando da delay e pula pra pisca
     ;Se errou, pisca e reinicia
