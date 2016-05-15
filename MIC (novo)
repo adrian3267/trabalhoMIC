@@ -1,24 +1,27 @@
 #start=DAS5332_raiz.exe#
-#start=LED_Display.exe#       
+#start=LED_Display.exe#
+#start=Printer.exe#       
       
 data segment
     iniciou DB 0
     nivel DW 00H
     
-    NIVELMAX EQU 50d
+    NIVELMAX EQU 50D
     armazena_chaves DB 00H
     
     LEDS EQU 21H
     CHAVES EQU 20H
     
-    DISPLAY EQU 0C7H  ;define display LCD (talvez nao seja EQU)
+    DISPLAY EQU 0C7H  ;define display LCD
+    
+    PRINTER EQU 082H  
     
     sequencia DB NIVELMAX DUP(0)
-    fim_sequenecia DB ?
+    fim_sequencia DB ?
 ends
 
 stack segment
-    dw   16  dup(0)
+    DW   16  dup(0)
 ends       
 
 interrupt segment   
@@ -27,7 +30,7 @@ interrupt segment
         IRET
         
     trata91h:
-        ;reinicia
+        MOV iniciou, 0
         IRET
         
     
@@ -66,13 +69,23 @@ code segment
     generate_random ENDP
     
     atraso PROC
-        MOV CX, 010H
+        MOV CX, 099H
         ciclo:
             LOOP ciclo 
         
             RET
         
-    atraso ENDP
+    atraso ENDP 
+               
+               
+    atraso_maior PROC
+        MOV CX, 1FFH
+        ciclo2:
+            LOOP ciclo2 
+        
+            RET
+        
+    atraso_maior ENDP
    
     conversor PROC
         MOV CL, sequencia[SI]
@@ -88,6 +101,10 @@ code segment
     
     ;---------------Programa Principal---------------;
 START:
+    MOV AL, 00H
+    OUT LEDS, AL
+    MOV AL, 01H
+    OUT DISPLAY, AL
     CALL config_interrupt
     MOV AX, data
     MOV DS, AX
@@ -95,8 +112,9 @@ START:
     
     
 STANDBY:
-    CMP iniciou, 0
+    CMP iniciou, 1
     JNE STANDBY
+    CALL atraso_maior
     
 INSERE_ALEATORIO:
     MOV SI, nivel
@@ -106,11 +124,10 @@ INSERE_ALEATORIO:
     MOV nivel, SI
     
     MOV AX, nivel
-    OUT DISPLAY, AX
+    OUT DISPLAY, AX  ;Passa o nivel atual para o DISPLAY
     
     MOV SI, 00H
     
-    ;Jogar esses numeros no led sequencialmente
       
 
 ESCRITOR:
@@ -129,47 +146,122 @@ INPUT:
     MOV SI, 00H
     
     espera_ligar:
-        IN AL, CHAVES
+        IN AL, CHAVES  ;aguarda o jogador selecionar a chave correta
         CMP AL, 00H
         JE espera_ligar
-        MOV armazena_chaves, AL
-        CALL conversor
-        CMP AL, armazena_chaves
-        JNE REINICIA
+        MOV armazena_chaves, AL ;salva a chave selecionada
     
     espera_desligar:
-        IN AL, CHAVES
+        IN AL, CHAVES           ;aguarda a chave ser desativada
         CMP AL, 00H
         JNE espera_desligar
-    INC SI
-    CMP SI, nivel
-    JNE espera_ligar    
+          
+        CALL conversor          ;Converte sequencia[SI] para binario
+        CMP AL, armazena_chaves
+        JNE REINICIA            ;ve se o jogador acertou a chave
+    
+    INC SI             ;incrementa o SI que fara com que o sequencia[SI] pegue o prox. elemento
+    CMP SI, nivel      ;compara com o nivel atual para saber se deve receber mais um valor
+    JNE espera_ligar   ;se deve receber, volta para espera_ligar 
         
         
-        ;Ve o que o jogador botou, compara com a list
-    ;Se acertou, continua verificando, ate chegar em NIVEL vezes, quando da delay e pula pra pisca
-    ;Se errou, pisca e reinicia
+ 
+;;;Isso so funciona quando o programa roda devagar 
+;;;Quando nao tem aquele 'delay' na execucao, buga     
+;;;Tentem arrumar, qualquer coisa nem colocamos
+;IMPRIME:
+;    MOV AL, 56H    ;V
+;    OUT PRINTER,AL
+;    MOV AL, 6FH
+;    OUT PRINTER,AL ;o
+;    MOV AL, 63H
+;    OUT PRINTER,AL ;c
+;    MOV AL, 65H
+;    OUT PRINTER,AL ;e    
+;    MOV AL, 20H
+;    OUT PRINTER,AL ;(space)
+;    MOV AL, 70H
+;    OUT PRINTER,AL ;p
+;    MOV AL, 61H
+;    OUT PRINTER,AL ;a
+;    MOV AL, 73H
+;    OUT PRINTER,AL ;s
+;    MOV AL, 73H
+;    OUT PRINTER,AL ;s
+;    MOV AL, 6FH
+;    OUT PRINTER,AL ;o
+;    MOV AL, 75H
+;    OUT PRINTER,AL ;u
+;    MOV AL, 20H
+;    OUT PRINTER,AL ;(space)
+;    MOV AL, 64H
+;    OUT PRINTER,AL ;d
+;    MOV AL, 65H
+;    OUT PRINTER,AL ;e
+;    MOV AL, 20H
+;    OUT PRINTER,AL ;(space)
+;    MOV AL, 6EH
+;    OUT PRINTER,AL ;n
+;    MOV AL, 69H
+;    OUT PRINTER,AL ;i
+;    MOV AL, 76H
+;    OUT PRINTER,AL ;v
+;    MOV AL, 65H
+;    OUT PRINTER,AL ;e
+;    MOV AL, 6CH
+;    OUT PRINTER,AL ;l
+;    MOV AL, 20H
+;    OUT PRINTER,AL ;(space)
+;    MOV AL, 50H
+;    OUT PRINTER,AL ;P
+;    MOV AL, 52H
+;    OUT PRINTER,AL ;R
+;    MOV AL, 45H
+;    OUT PRINTER,AL ;E
+;    MOV AL, 50H
+;    OUT PRINTER,AL ;P
+;    MOV AL, 41H
+;    OUT PRINTER,AL ;A
+;    MOV AL, 52H
+;    OUT PRINTER,AL ;R
+;    MOV AL, 45H
+;    OUT PRINTER,AL ;E
+;    MOV AL, 2DH
+;    OUT PRINTER,AL ;-
+;    MOV AL, 53H
+;    OUT PRINTER,AL ;S
+;    MOV AL, 45H
+;    OUT PRINTER,AL ;E
+;    MOV AL, 21H
+;    OUT PRINTER,AL ;!
      
+    
+    
+    
 DELAY:
-    CALL atraso
+    CALL atraso_maior
     CMP nivel, NIVELMAX
     JE PARABENS
     JMP INSERE_ALEATORIO
-    ;atualizar LED Display
-    ;if(nivel<nivelmax):
-    ;JMP Pisca   ]
-    ;else parabens e reinciia
                                 
                                 
 
 REINICIA:
-    ;Nivel = 1
-    ;Atualiza nivel display
-    ;Zera lista (ou nao) -> tem que ver como lidar com a lista
-    ;JMP standby
+    ;;Print: Voce e um perdedor
+    espera_interrupt:
+        CMP iniciou, 0
+        JNE espera_interrupt
+        MOV nivel, 0H
+        JMP STANDBY
     
 PARABENS:
-                
+;;Print: Voce passou todos os niveis existentes
+;;Print; PARABENS!
+   espera_interrupt2:
+       CMP iniciou, 0
+       JNE espera_interrupt2
+       MOV nivel, 0H
+       JMP STANDBY                 
     
 ends
 
