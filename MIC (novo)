@@ -1,0 +1,176 @@
+#start=DAS5332_raiz.exe#
+#start=LED_Display.exe#       
+      
+data segment
+    iniciou DB 0
+    nivel DW 00H
+    
+    NIVELMAX EQU 50d
+    armazena_chaves DB 00H
+    
+    LEDS EQU 21H
+    CHAVES EQU 20H
+    
+    DISPLAY EQU 0C7H  ;define display LCD (talvez nao seja EQU)
+    
+    sequencia DB NIVELMAX DUP(0)
+    fim_sequenecia DB ?
+ends
+
+stack segment
+    dw   16  dup(0)
+ends       
+
+interrupt segment   
+    trata90h:
+        MOV iniciou, 1
+        IRET
+        
+    trata91h:
+        ;reinicia
+        IRET
+        
+    
+interrupt ends
+
+code segment
+    ;---------------CONFIGURACAO---------------;
+    config_interrupt PROC
+        MOV AX, interrupt
+        MOV DS, AX
+        
+        MOV DX, offset trata90h
+        MOV AL, 90h
+        MOV AH, 25h  ;;21/25 usa DS:DX
+        INT 21h
+        
+        MOV DX, offset trata91h
+        MOV AL, 91h
+        MOV AH, 25h
+        INT 21h
+        
+        RET
+    config_interrupt ENDP
+    
+    generate_random PROC
+        MOV AH, 00  ;Interrupcao 1A/00
+        INT 1AH     ;CX:DX recebe o numero de ticks do clock desde a meia noite   
+        
+        MOV AX, DX
+        XOR DX, DX ;DX = 0
+        MOV CX, 8  ;CX = 10
+        DIV CX     ;AX = AX/CX -> resto vai para DX->numero entre 0 e 7
+        INC DX     ;Agora DX esta entre 1 e 8
+        
+        RET
+    generate_random ENDP
+    
+    atraso PROC
+        MOV CX, 010H
+        ciclo:
+            LOOP ciclo 
+        
+            RET
+        
+    atraso ENDP
+   
+    conversor PROC
+        MOV CL, sequencia[SI]
+        DEC CL   ;registra o valor de rotacoes (n-1), pois se o valor for 1 sao necessarias 0 rotacoes
+        MOV AL,01H
+        
+        ROL AL, CL  ;passa para AL o valor-posicao que deve ser acesso
+        
+        RET
+    conversor ENDP
+           
+         
+    
+    ;---------------Programa Principal---------------;
+START:
+    CALL config_interrupt
+    MOV AX, data
+    MOV DS, AX
+    MOV ES, AX
+    
+    
+STANDBY:
+    CMP iniciou, 0
+    JNE STANDBY
+    
+INSERE_ALEATORIO:
+    MOV SI, nivel
+    CALL generate_random
+    MOV sequencia[SI], DL
+    INC SI
+    MOV nivel, SI
+    
+    MOV AX, nivel
+    OUT DISPLAY, AX
+    
+    MOV SI, 00H
+    
+    ;Jogar esses numeros no led sequencialmente
+      
+
+ESCRITOR:
+    CALL conversor
+    INC SI
+    OUT LEDS,AL
+    CALL atraso
+    MOV AL, 00H
+    OUT LEDS,AL
+    CALL atraso
+    CMP SI,nivel
+    JE INPUT   
+    JMP ESCRITOR
+
+INPUT:
+    MOV SI, 00H
+    
+    espera_ligar:
+        IN AL, CHAVES
+        CMP AL, 00H
+        JE espera_ligar
+        MOV armazena_chaves, AL
+        CALL conversor
+        CMP AL, armazena_chaves
+        JNE REINICIA
+    
+    espera_desligar:
+        IN AL, CHAVES
+        CMP AL, 00H
+        JNE espera_desligar
+    INC SI
+    CMP SI, nivel
+    JNE espera_ligar    
+        
+        
+        ;Ve o que o jogador botou, compara com a list
+    ;Se acertou, continua verificando, ate chegar em NIVEL vezes, quando da delay e pula pra pisca
+    ;Se errou, pisca e reinicia
+     
+DELAY:
+    CALL atraso
+    CMP nivel, NIVELMAX
+    JE PARABENS
+    JMP INSERE_ALEATORIO
+    ;atualizar LED Display
+    ;if(nivel<nivelmax):
+    ;JMP Pisca   ]
+    ;else parabens e reinciia
+                                
+                                
+
+REINICIA:
+    ;Nivel = 1
+    ;Atualiza nivel display
+    ;Zera lista (ou nao) -> tem que ver como lidar com a lista
+    ;JMP standby
+    
+PARABENS:
+                
+    
+ends
+
+end START ; set entry point and stop the assembler.
